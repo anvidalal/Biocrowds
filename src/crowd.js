@@ -106,7 +106,7 @@ class Agent {
         this.markers[j].geom.material = material;
     }
 
-    var v = mv.normalize().multiplyScalar(3.0);
+    var v = mv.normalize().multiplyScalar(1.0);
     this.position = this.position.add(v);
 
     this.markers.length = 0;
