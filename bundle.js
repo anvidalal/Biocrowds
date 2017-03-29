@@ -50,125 +50,76 @@
 	
 	var _framework2 = _interopRequireDefault(_framework);
 	
+	var _crowd = __webpack_require__(8);
+	
+	var _crowd2 = _interopRequireDefault(_crowd);
+	
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 	
 	var THREE = __webpack_require__(6); // older modules are imported like this. You shouldn't have to worry about this much
 	
 	
-	var currTime = 0;
-	var mouse;
-	
-	var input = {
-	  amplitude: 40.0,
-	  mouse_interactivity: false
+	var crowd;
+	var options = {
+	  configuration: 'circle',
+	  numMarkers: 2000,
+	  numAgents: 10,
+	  obstacle: false,
+	  pause: true,
+	  debug: true
 	};
 	
-	var myMaterial = new THREE.ShaderMaterial({
-	  uniforms: {
-	    image: { // Check the Three.JS documentation for the different allowed types and values
-	      type: "t",
-	      value: THREE.ImageUtils.loadTexture('./colors.jpg')
-	    },
-	    time: {
-	      type: "float",
-	      value: currTime
-	    },
-	    persistence: {
-	      type: "float",
-	      value: 0.59
-	    },
-	    amplitude: {
-	      type: "float",
-	      value: 40.0
-	    },
-	    inclination: {
-	      type: "v3",
-	      value: new THREE.Vector3(0, 0, 0)
-	    }
-	  },
-	  vertexShader: __webpack_require__(8),
-	  fragmentShader: __webpack_require__(9)
-	});
-	
-	// called after the scene loads
 	function onLoad(framework) {
-	  var scene = framework.scene,
-	      camera = framework.camera,
-	      renderer = framework.renderer,
-	      gui = framework.gui,
-	      stats = framework.stats;
+	  var scene = framework.scene;
+	  var camera = framework.camera;
+	  var renderer = framework.renderer;
+	  var gui = framework.gui;
+	  var stats = framework.stats;
 	
-	  // create geometry and add it to the scene
+	  var directionalLight = new THREE.DirectionalLight(0xffffff, 0.7);
+	  scene.add(directionalLight);
+	  scene.background = new THREE.Color('skyblue');
 	
-	  var geom_icosa = new THREE.IcosahedronBufferGeometry(10, 5);
-	  var myIcosa = new THREE.Mesh(geom_icosa, myMaterial);
-	  scene.add(myIcosa);
-	
-	  // set camera position
-	  camera.position.set(15, 15, 90);
+	  camera.position.set(-200, 280, 300);
 	  camera.lookAt(new THREE.Vector3(0, 0, 0));
 	
-	  // edit params and listen to changes like this
-	  // more information here: https://workshop.chromeexperiments.com/examples/gui/#1--Basic-Usage
-	  gui.add(camera, 'fov', 0, 180).onChange(function (newVal) {
-	    camera.updateProjectionMatrix();
+	  gui.add(options, 'configuration', ['circle', 'corners']).onChange(function (newVal) {
+	    crowd.reset();
+	    crowd.initialize(options.numAgents, options.numMarkers, options.configuration, options.debug, options.obstacle);
 	  });
-	
-	  // add a slider to let user change *radius* of icosahedron
-	  gui.add(myIcosa.geometry.parameters, 'radius', 0, 100).onChange(function (newVal) {
-	    var detail = myIcosa.geometry.parameters.detail;
-	    scene.remove(myIcosa);
-	    myIcosa = new THREE.Mesh(new THREE.IcosahedronBufferGeometry(newVal, detail), myMaterial);
-	    scene.add(myIcosa);
-	    renderer.render(scene, camera);
+	  gui.add(options, 'numMarkers', 0, 6000).step(500).onChange(function (newVal) {
+	    crowd.reset();
+	    crowd.initialize(options.numAgents, newVal, options.configuration, options.debug, options.obstacle);
 	  });
-	
-	  // add a slider to let user change *detail* of icosahedron 
-	  gui.add(myIcosa.geometry.parameters, 'detail', 0, 8).step(1).onChange(function (newVal) {
-	    var radius = myIcosa.geometry.parameters.radius;
-	    scene.remove(myIcosa);
-	    myIcosa = new THREE.Mesh(new THREE.IcosahedronBufferGeometry(radius, newVal), myMaterial);
-	    scene.add(myIcosa);
-	    renderer.render(scene, camera);
+	  gui.add(options, 'numAgents', 0, 20).step(2).onChange(function (newVal) {
+	    crowd.reset();
+	    crowd.initialize(newVal, options.numMarkers, options.configuration, options.debug, options.obstacle);
 	  });
-	
-	  // add a slider to let user change *persistence* of noise 
-	  gui.add(input, 'amplitude', 0, 50).onChange(function (newVal) {
-	    myMaterial.uniforms.amplitude.value = input.amplitude;
-	    renderer.render(scene, camera);
+	  gui.add(options, 'obstacle').onChange(function (newVal) {
+	    crowd.reset();
+	    crowd.initialize(options.numAgents, options.numMarkers, options.configuration, options.debug, options.obstacle);
 	  });
-	
-	  // add a checkbox to toggle mouse interactivity
-	  gui.add(input, "mouse_interactivity").onChange(function (newVal) {
-	    if (!newVal) {
-	      myMaterial.uniforms.inclination.value = new THREE.Vector3(0, 0, 0);
-	    }
-	  });
-	
-	  // change inclination based on mouse click position
-	  window.addEventListener('mousemove', function (event) {
-	
-	    if (input.mouse_interactivity) {
-	      // from http://stackoverflow.com/questions/13055214/mouse-canvas-x-y-to-three-js-world-x-y-z
-	      var vector = new THREE.Vector3(event.clientX / window.innerWidth * 2 - 1, -(event.clientY / window.innerHeight) * 2 + 1, 0.5);
-	      vector.unproject(camera);
-	      var dir = vector.sub(camera.position).normalize();
-	      var distance = -camera.position.z / dir.z;
-	      var pos = camera.position.clone().add(dir.multiplyScalar(distance));
-	
-	      myMaterial.uniforms.inclination.value = pos;
-	      renderer.render(scene, camera);
+	  gui.add(options, 'pause');
+	  gui.add(options, 'debug').onChange(function (newVal) {
+	    if (newVal) {
+	      crowd.showMarkers();
+	    } else {
+	      crowd.removeMarkers();
 	    }
 	  });
 	}
 	
-	// called on frame updates
 	function onUpdate(framework) {
-	  currTime += 0.2;
-	  myMaterial.uniforms.time.value = currTime;
+	  if (crowd) {
+	    if (!options.pause) {
+	      crowd.update();
+	    }
+	  } else {
+	    crowd = new _crowd2.default(framework.scene);
+	    crowd.initialize(options.numAgents, options.numMarkers, options.configuration, options.debug, options.obstacle);
+	  }
 	}
 	
-	// when the scene is done initializing, it will call onLoad, then on frame updates, call onUpdate
 	_framework2.default.init(onLoad, onUpdate);
 
 /***/ },
@@ -48040,15 +47991,383 @@
 
 /***/ },
 /* 8 */
-/***/ function(module, exports) {
+/***/ function(module, exports, __webpack_require__) {
 
-	module.exports = "varying float noise;\nuniform float amplitude;\nuniform float time;\nuniform float persistence;\nuniform vec3 inclination;\nfloat M_PI = 3.14159265359;\n\nfloat noise_gen(vec3 pos)\n{\n  return fract(sin(dot(pos, vec3(12.9898, 78.233, 39.73))) * 43758.545);\n}\n\nfloat lerp(float a, float b, float t)\n{\n  return a * (1.0 - t) + b * t;\n}\n\nfloat cerp(float a, float b, float t) {\n  float cos_t = (1.0 - cos(t * M_PI)) * 0.5;\n  return a * (1.0 - cos_t) + b * cos_t;\n}\n\nfloat smooth(vec3 pos, float fq)\n{\n\tfloat r = 1.0 / fq;\n\treturn (noise_gen(pos + vec3(r, r, r)) + noise_gen(pos + vec3(- r, r, r))\n\t\t+ noise_gen(pos + vec3(r,- r, r)) + noise_gen(pos + vec3(- r,- r, r))\n\t\t+ noise_gen(pos + vec3(r, r,- r)) + noise_gen(pos + vec3(- r, r,- r))\n\t\t+ noise_gen(pos + vec3(r, - r,- r)) + noise_gen(pos + vec3(- r,- r,- r))) / 8.0;\n}\n\nfloat noise_interpolate(vec3 pos, float fq)\n{\n  pos *= 0.2;\n\n  vec3 a = vec3(floor(pos.x), ceil(pos.y), ceil(pos.z));\n  vec3 b = vec3(ceil(pos.x), ceil(pos.y), ceil(pos.z));\n  vec3 c = vec3(floor(pos.x), floor(pos.y), ceil(pos.z));\n  vec3 d = vec3(ceil(pos.x), floor(pos.y), ceil(pos.z));\n\n  vec3 e = vec3(floor(pos.x), ceil(pos.y), floor(pos.z));\n  vec3 f = vec3(ceil(pos.x), ceil(pos.y), floor(pos.z));\n  vec3 g = vec3(floor(pos.x), floor(pos.y), floor(pos.z));\n  vec3 h = vec3(ceil(pos.x), floor(pos.y), floor(pos.z));\n\n  float ab = cerp(smooth(a, fq), smooth(b, fq), fract(pos.x));\n  float cd = cerp(smooth(c, fq), smooth(d, fq), fract(pos.x));\n  float abcd = cerp(cd, ab, fract(pos.y));\n\n  float ef = cerp(smooth(e, fq), smooth(f, fq), fract(pos.x));\n  float gh = cerp(smooth(g, fq), smooth(h, fq), fract(pos.x));\n  float efgh = cerp(gh, ef, fract(pos.y));\n\n  return cerp(efgh, abcd, fract(pos.z));\n}\n\nfloat pnoise(vec3 pos)\n{\n\tfloat total = 0.0;\n\n\tfor (int i = 0; i < 16; ++i)\n\t{\n\t\tfloat fq = pow(2.0, float(i));\n\t\tfloat amplitude = pow(persistence, float(i));\n\n\t\ttotal += noise_interpolate(pos, fq) * amplitude;\n\t}\n\treturn total;\n}\n\nvoid main() {\n\tnoise = pnoise(position + vec3(time, time, time)) - 0.5;\n  float ampl = amplitude;\n  if (inclination != vec3(0, 0, 0)) {\n  ampl -= dot(normal, normalize(inclination)) * amplitude;\n  }\n\tvec3 p = position + noise * ampl * normalize(normal);\n\tgl_Position = projectionMatrix * modelViewMatrix * vec4( p, 1.0 );\n}"
-
-/***/ },
-/* 9 */
-/***/ function(module, exports) {
-
-	module.exports = "varying float noise;\nuniform sampler2D image;\n\nvoid main() {\n\tvec4 color = texture2D( image, vec2(1, noise));\n\tgl_FragColor = vec4( color.rgb, 1.0 );\n}"
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	
+	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+	
+	exports.default = Crowd;
+	
+	var _framework = __webpack_require__(1);
+	
+	var _framework2 = _interopRequireDefault(_framework);
+	
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+	
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+	
+	var THREE = __webpack_require__(6); // older modules are imported like this. You shouldn't have to worry about this much
+	
+	
+	var SIZE = 400;
+	
+	function getRandomPosition() {
+	  var max = SIZE / 2 - 1;
+	  var x = max * (2 * Math.random() - 1);
+	  var z = max * (2 * Math.random() - 1);
+	  return new THREE.Vector3(x, 0, z);
+	}
+	
+	var Marker = function () {
+	  function Marker(obs, w, l) {
+	    _classCallCheck(this, Marker);
+	
+	    this.position = getRandomPosition();
+	    this.free = true;
+	    this.obs = obs;
+	    this.w = w;
+	    this.l = l;
+	    if (obs && this.position.x < w / 2 && this.position.x > -w / 2 && this.position.z < l / 2 && this.position.z > -l / 2) {
+	      this.free = false;
+	    }
+	    this.geom = this.makeMesh();
+	  }
+	
+	  _createClass(Marker, [{
+	    key: 'makeMesh',
+	    value: function makeMesh() {
+	      var geometry = new THREE.CylinderGeometry(0.5, 0.5, 0.5, 4);
+	      var material = new THREE.MeshLambertMaterial({ color: 0x4c4c4c });
+	      var mesh = new THREE.Mesh(geometry, material);
+	      return mesh;
+	    }
+	  }]);
+	
+	  return Marker;
+	}();
+	
+	var Agent = function () {
+	  function Agent() {
+	    _classCallCheck(this, Agent);
+	
+	    this.position = getRandomPosition();
+	    this.goal = getRandomPosition();
+	    this.markers = [];
+	    this.radius = 30;
+	
+	    this.color = this.generateColor();
+	    this.geom = this.makeAgentMesh();
+	    this.goalGeom = this.makeGoalMesh();
+	
+	    this.cells = { x: Infinity, z: Infinity };
+	  }
+	
+	  _createClass(Agent, [{
+	    key: 'makeAgentMesh',
+	    value: function makeAgentMesh() {
+	      var geometry = new THREE.CylinderGeometry(5, 5, 20, 32);
+	      geometry.applyMatrix(new THREE.Matrix4().makeTranslation(0, 10, 0));
+	      var material = new THREE.MeshBasicMaterial({ color: this.color });
+	      var mesh = new THREE.Mesh(geometry, material);
+	      return mesh;
+	    }
+	  }, {
+	    key: 'makeGoalMesh',
+	    value: function makeGoalMesh() {
+	      var geometry = new THREE.CylinderGeometry(5, 5, 0.25, 8);
+	      var material = new THREE.MeshBasicMaterial({ color: this.color });
+	      var mesh = new THREE.Mesh(geometry, material);
+	      return mesh;
+	    }
+	  }, {
+	    key: 'generateColor',
+	    value: function generateColor() {
+	      var r = (Math.round(Math.random() * 127) + 127) / 255;
+	      var g = (Math.round(Math.random() * 127) + 127) / 255;
+	      var b = (Math.round(Math.random() * 127) + 127) / 255;
+	      return new THREE.Color(r, g, b);
+	    }
+	  }, {
+	    key: 'differenceVector',
+	    value: function differenceVector(v1, v2) {
+	      var x = v1.x - v2.x;
+	      var y = v1.y - v2.y;
+	      var z = v1.z - v2.z;
+	
+	      return new THREE.Vector3(x, y, z);
+	    }
+	  }, {
+	    key: 'getWeight',
+	    value: function getWeight(marker) {
+	      var x = this.differenceVector(this.goal, this.position);
+	      var y = this.differenceVector(marker.position, this.position);
+	      var angle = x.angleTo(y);
+	
+	      return (1 + Math.cos(angle)) / (1 + y.length());
+	    }
+	  }, {
+	    key: 'update',
+	    value: function update() {
+	      var totalWeight = 0;
+	      for (var i = 0; i < this.markers.length; i++) {
+	        totalWeight += this.getWeight(this.markers[i]);
+	      }
+	
+	      var mv = new THREE.Vector3();
+	      for (var j = 0; j < this.markers.length; j++) {
+	        var factor = this.getWeight(this.markers[j]);
+	        if (totalWeight != 0) {
+	          factor /= totalWeight;
+	        }
+	        var dv = this.differenceVector(this.markers[j].position, this.position);
+	        mv = mv.add(dv.multiplyScalar(factor));
+	
+	        this.markers[j].free = true;
+	        var material = new THREE.MeshLambertMaterial({ color: 0x4c4c4c });
+	        this.markers[j].geom.material = material;
+	      }
+	
+	      var v = mv.normalize().multiplyScalar(3.0);
+	      this.position = this.position.add(v);
+	
+	      this.markers.length = 0;
+	    }
+	  }]);
+	
+	  return Agent;
+	}();
+	
+	var Grid = function () {
+	  function Grid() {
+	    _classCallCheck(this, Grid);
+	
+	    this.size = SIZE;
+	    this.geom = this.initPlaneGeom();
+	    this.markers = [];
+	    this.agents = [];
+	
+	    this.numCol = 8;
+	    this.cells = this.init2DArray(this.numCol);
+	    this.cellSize = this.size / this.numCol;
+	  }
+	
+	  _createClass(Grid, [{
+	    key: 'initPlaneGeom',
+	    value: function initPlaneGeom() {
+	      var geometry = new THREE.PlaneGeometry(this.size, this.size);
+	      var material = new THREE.MeshLambertMaterial({ color: 0xb0b0b0, side: THREE.DoubleSide });
+	      var mesh = new THREE.Mesh(geometry, material);
+	      mesh.rotateX(Math.PI / 2);
+	
+	      return mesh;
+	    }
+	  }, {
+	    key: 'init2DArray',
+	    value: function init2DArray(size) {
+	      var arr = [];
+	      for (var i = 0; i < size; i++) {
+	        arr.push([]);
+	        for (var j = 0; j < size; j++) {
+	          arr[i].push([]);
+	        }
+	      }
+	      return arr;
+	    }
+	  }, {
+	    key: 'initCells',
+	    value: function initCells() {
+	      for (var i = 0; i < this.markers.length; i++) {
+	        var cells = this.getCells(this.markers[i].position);
+	        this.cells[cells.x][cells.z].push(this.markers[i]);
+	      }
+	    }
+	  }, {
+	    key: 'updateACells',
+	    value: function updateACells() {
+	      for (var i = 0; i < this.agents.length; i++) {
+	        var cells = this.getCells(this.agents[i].position);
+	        this.agents[i].cells = cells;
+	      }
+	    }
+	  }, {
+	    key: 'getCells',
+	    value: function getCells(pos) {
+	      var x = this.numCol / 2 + Math.floor(pos.x / this.cellSize);
+	      var z = Math.floor(pos.z / this.cellSize);
+	
+	      if (z < 0) {
+	        z = this.numCol / 2 - 1 + Math.abs(z);
+	      } else {
+	        z = this.numCol / 2 - 1 - z;
+	      }
+	
+	      return { x: x, z: z };
+	    }
+	  }, {
+	    key: 'updateMarkers',
+	    value: function updateMarkers() {
+	      for (var i = 0; i < this.agents.length; i++) {
+	        var dist = this.agents[i].position.distanceTo(this.agents[i].goal);
+	        if (dist < 10) {
+	          continue;
+	        }
+	        var all = this.getMarkers(this.agents[i]);
+	
+	        for (var j = 0; j < all.length; j++) {
+	          if (!all[j].free) {
+	            continue;
+	          }
+	          var distance = all[j].position.distanceTo(this.agents[i].position);
+	          if (distance > this.agents[i].radius) {
+	            continue;
+	          }
+	          this.agents[i].markers.push(all[j]);
+	          all[j].free = false;
+	
+	          var material = new THREE.MeshBasicMaterial({ color: this.agents[i].geom.material.color });
+	          all[j].geom.material = material;
+	        }
+	      }
+	    }
+	  }, {
+	    key: 'getMarkers',
+	    value: function getMarkers(agent) {
+	      var cells = agent.cells;
+	      var c = this.cells[cells.x][cells.z];
+	
+	      var lx = Math.max(0, cells.x - 1);
+	      var l = this.cells[lx][cells.z];
+	
+	      var rx = cells.x + 1 > this.numCol - 1 ? 0 : cells.x + 1;
+	      var r = this.cells[rx][cells.z];
+	
+	      var bz = Math.max(0, cells.z - 1);
+	      var b = this.cells[cells.x][bz];
+	
+	      var tz = cells.z + 1 > this.numCol - 1 ? 0 : cells.z + 1;
+	      var t = this.cells[cells.x][tz];
+	
+	      return c.concat(l.concat(r.concat(b.concat(t))));
+	    }
+	  }]);
+	
+	  return Grid;
+	}();
+	
+	function Crowd(scene) {
+	
+	  this.initialize = function (numAgents, numMarkers, configuration, debug, obstacle) {
+	    this.numAgents = numAgents;
+	    this.numMarkers = numMarkers;
+	    this.config = configuration;
+	    this.debug = debug;
+	    this.obs = obstacle;
+	    this.obsW = 0;
+	    this.obsL = 0;
+	
+	    this.grid = new Grid();
+	    scene.add(this.grid.geom);
+	
+	    if (this.obs) {
+	      this.obsW = Math.random() * 100 + 50;
+	      this.obsL = Math.random() * 100 + 50;
+	      var geometry = new THREE.BoxGeometry(this.obsW, 40, this.obsL);
+	      geometry.applyMatrix(new THREE.Matrix4().makeTranslation(0, 20, 0));
+	      var material = new THREE.MeshBasicMaterial({ color: 'black' });
+	      this.obsMesh = new THREE.Mesh(geometry, material);
+	      scene.add(this.obsMesh);
+	    }
+	
+	    for (var j = 0; j < numMarkers; j++) {
+	      var m = new Marker(this.obs, this.obsW, this.obsL);
+	      if (this.debug) {
+	        scene.add(m.geom);
+	      }
+	
+	      m.geom.position.set(m.position.x, m.position.y, m.position.z);
+	      this.grid.markers.push(m);
+	    }
+	
+	    for (var i = 0; i < numAgents; i++) {
+	      var a = new Agent();
+	      if (this.config == 'circle') {
+	        var x = 0.25 * SIZE * Math.cos(2 * i * Math.PI / numAgents);
+	        var z = 0.25 * SIZE * Math.sin(2 * i * Math.PI / numAgents);
+	        a.position = new THREE.Vector3(x, 0, z);
+	        var gx = 0.45 * SIZE * Math.cos(2 * (numAgents - i) * Math.PI / numAgents);
+	        var gz = 0.45 * SIZE * Math.sin(2 * (numAgents - i) * Math.PI / numAgents);
+	        a.goal = new THREE.Vector3(gx, 0, gz);
+	      } else if (this.config == 'corners') {
+	        var offsetX = Math.random() * 30;
+	        var offsetZ = Math.random() * 30;
+	
+	        if (Math.random() < 0.5) {
+	          a.position = new THREE.Vector3(SIZE / 2 - offsetX, 0, SIZE / 2 - offsetZ);
+	          a.goal = new THREE.Vector3(-SIZE / 2 + 20, 0, -SIZE / 2 + 20);
+	        } else {
+	          a.position = new THREE.Vector3(-(SIZE / 2) + offsetX, 0, SIZE / 2 - offsetZ);
+	          a.goal = new THREE.Vector3(SIZE / 2 - 20, 0, -SIZE / 2 + 20);
+	        }
+	      }
+	
+	      scene.add(a.geom);
+	      a.geom.position.set(a.position.x, a.position.y, a.position.z);
+	
+	      scene.add(a.goalGeom);
+	      a.goalGeom.position.set(a.goal.x, a.goal.y, a.goal.z);
+	
+	      this.grid.agents.push(a);
+	    }
+	
+	    this.grid.initCells();
+	  };
+	
+	  this.update = function () {
+	    for (var i = 0; i < this.numAgents; i++) {
+	      var agent = this.grid.agents[i];
+	      var dist = agent.position.distanceTo(agent.goal);
+	      this.grid.updateACells();
+	      this.grid.updateMarkers();
+	
+	      if (dist > 10) {
+	        agent.update();
+	        agent.geom.position.set(agent.position.x, agent.position.y, agent.position.z);
+	      }
+	    }
+	  };
+	
+	  this.showMarkers = function () {
+	    for (var j = 0; j < this.numMarkers; j++) {
+	      scene.add(this.grid.markers[j].geom);
+	    }
+	  };
+	
+	  this.removeMarkers = function () {
+	    for (var j = 0; j < this.numMarkers; j++) {
+	      scene.remove(this.grid.markers[j].geom);
+	    }
+	  };
+	
+	  this.reset = function () {
+	    for (var i = 0; i < this.numAgents; i++) {
+	      var agent = this.grid.agents[i];
+	      scene.remove(agent.geom);
+	      scene.remove(agent.goalGeom);
+	    }
+	    this.grid.agents = [];
+	    for (var j = 0; j < this.numMarkers; j++) {
+	      scene.remove(this.grid.markers[j].geom);
+	    }
+	    this.grid.markers = [];
+	    this.grid.cells = [];
+	    scene.remove(this.obsMesh);
+	  };
+	}
 
 /***/ }
 /******/ ]);
